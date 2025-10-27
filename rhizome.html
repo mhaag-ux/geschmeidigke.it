@@ -295,6 +295,11 @@
             background: #b721ff;
         }
 
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
+        }
+
         @media (max-width: 768px) {
             .node-panel {
                 width: calc(100% - 40px);
@@ -330,7 +335,8 @@
             <h3>◈ Navigation</h3>
             <p><strong>Drag:</strong> Rotate view</p>
             <p><strong>Scroll:</strong> Zoom in/out</p>
-            <p><strong>Click node:</strong> View & comment</p>
+            <p><strong>Click node:</strong> View & add comments</p>
+            <p><strong>Comment:</strong> Creates new connected node</p>
             <p><strong>Travel:</strong> Move to connected nodes</p>
         </div>
 
@@ -345,13 +351,13 @@
             <div class="node-id" id="nodeId">ID: —</div>
             
             <div class="comments-section">
-                <h3>Comments</h3>
+                <h3>Connected Comments</h3>
                 <div id="commentsList"></div>
                 
                 <div class="comment-form">
                     <input type="text" id="authorInput" placeholder="Your name" />
-                    <textarea id="commentInput" placeholder="Leave a comment..."></textarea>
-                    <button onclick="addComment()">Post Comment</button>
+                    <textarea id="commentInput" placeholder="Add a comment (creates new node)..."></textarea>
+                    <button onclick="addComment()">Create Node</button>
                 </div>
             </div>
         </div>
@@ -387,14 +393,18 @@
 
         // Node data structure
         class Node {
-            constructor(id, name, x, y, z) {
+            constructor(id, name, x, y, z, isComment = false, author = null, text = null, parentId = null) {
                 this.id = id;
                 this.name = name;
                 this.x = x;
                 this.y = y;
                 this.z = z;
                 this.connections = [];
-                this.comments = [];
+                this.isComment = isComment;
+                this.author = author;
+                this.text = text;
+                this.parentId = parentId;
+                this.timestamp = new Date().toLocaleString();
             }
         }
 
@@ -521,7 +531,8 @@
             sortedNodes.forEach(({ node, index, projected: proj }) => {
                 if (proj.z < -500) return;
 
-                const radius = 5 * proj.scale;
+                const baseRadius = node.isComment ? 3.5 : 5;
+                const radius = baseRadius * proj.scale;
                 const isSelected = selectedNode && selectedNode.id === node.id;
                 const isCurrent = currentNode && currentNode.id === node.id;
 
@@ -534,6 +545,9 @@
                 } else if (isSelected) {
                     gradient.addColorStop(0, 'rgba(255, 0, 255, 0.6)');
                     gradient.addColorStop(0.5, 'rgba(255, 0, 255, 0.3)');
+                } else if (node.isComment) {
+                    gradient.addColorStop(0, 'rgba(147, 51, 234, 0.5)');
+                    gradient.addColorStop(0.5, 'rgba(107, 0, 255, 0.25)');
                 } else {
                     gradient.addColorStop(0, 'rgba(183, 33, 255, 0.5)');
                     gradient.addColorStop(0.5, 'rgba(107, 0, 255, 0.3)');
@@ -546,15 +560,19 @@
                 ctx.fill();
 
                 // Node center
-                ctx.fillStyle = isCurrent ? '#ffffff' : (isSelected ? '#ff00ff' : '#b721ff');
+                if (node.isComment) {
+                    ctx.fillStyle = isCurrent ? '#ffffff' : (isSelected ? '#ff00ff' : '#9333ea');
+                } else {
+                    ctx.fillStyle = isCurrent ? '#ffffff' : (isSelected ? '#ff00ff' : '#b721ff');
+                }
                 ctx.beginPath();
                 ctx.arc(proj.x, proj.y, radius, 0, Math.PI * 2);
                 ctx.fill();
 
                 // Node label
                 if (proj.scale > 0.7) {
-                    ctx.fillStyle = '#b721ff';
-                    ctx.font = `${12 * proj.scale}px "Courier New"`;
+                    ctx.fillStyle = node.isComment ? '#9333ea' : '#b721ff';
+                    ctx.font = `${(node.isComment ? 10 : 12) * proj.scale}px "Courier New"`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.fillText(node.name, proj.x, proj.y - radius * 3);
@@ -626,26 +644,52 @@
 
         function openNodePanel(node) {
             selectedNode = node;
-            document.getElementById('nodeName').textContent = node.name;
-            document.getElementById('nodeId').textContent = `ID: ${node.id}`;
             
-            // Display comments
-            const commentsList = document.getElementById('commentsList');
-            commentsList.innerHTML = '';
-            
-            if (node.comments.length === 0) {
-                commentsList.innerHTML = '<p style="color: #666; font-style: italic;">No comments yet. Be the first!</p>';
+            if (node.isComment) {
+                // Display comment node info
+                document.getElementById('nodeName').textContent = node.name;
+                document.getElementById('nodeId').textContent = `Comment by ${node.author}`;
+                
+                const commentsList = document.getElementById('commentsList');
+                commentsList.innerHTML = `
+                    <div class="comment">
+                        <div class="comment-author">${node.author}</div>
+                        <div class="comment-text">${node.text}</div>
+                        <div class="comment-time">${node.timestamp}</div>
+                    </div>
+                    <p style="color: #666; font-style: italic; margin-top: 15px;">This is a comment node. Add your own comment to create a new connection!</p>
+                `;
             } else {
-                node.comments.forEach(comment => {
-                    const commentDiv = document.createElement('div');
-                    commentDiv.className = 'comment';
-                    commentDiv.innerHTML = `
-                        <div class="comment-author">${comment.author}</div>
-                        <div class="comment-text">${comment.text}</div>
-                        <div class="comment-time">${comment.time}</div>
-                    `;
-                    commentsList.appendChild(commentDiv);
-                });
+                // Display topic node info
+                document.getElementById('nodeName').textContent = node.name;
+                document.getElementById('nodeId').textContent = `ID: ${node.id} • Topic Node`;
+                
+                // Find and display connected comment nodes
+                const commentsList = document.getElementById('commentsList');
+                const commentNodes = node.connections
+                    .map(id => nodes[id])
+                    .filter(n => n && n.isComment && n.parentId === node.id);
+                
+                if (commentNodes.length === 0) {
+                    commentsList.innerHTML = '<p style="color: #666; font-style: italic;">No comments yet. Be the first to add a node!</p>';
+                } else {
+                    commentsList.innerHTML = '';
+                    commentNodes.forEach(commentNode => {
+                        const commentDiv = document.createElement('div');
+                        commentDiv.className = 'comment';
+                        commentDiv.style.cursor = 'pointer';
+                        commentDiv.onclick = () => {
+                            travelToNode(commentNode);
+                            openNodePanel(commentNode);
+                        };
+                        commentDiv.innerHTML = `
+                            <div class="comment-author">${commentNode.author}</div>
+                            <div class="comment-text">${commentNode.text}</div>
+                            <div class="comment-time">${commentNode.timestamp}</div>
+                        `;
+                        commentsList.appendChild(commentDiv);
+                    });
+                }
             }
             
             document.getElementById('nodePanel').classList.add('active');
@@ -671,20 +715,65 @@
                 return;
             }
             
-            const comment = {
-                author: author,
-                text: text,
-                time: new Date().toLocaleString()
-            };
+            // Create a short name from the comment
+            const shortName = text.length > 20 ? text.substring(0, 20) + '...' : text;
             
-            selectedNode.comments.push(comment);
+            // Position new node near parent
+            const offset = 80 + Math.random() * 40;
+            const angle = Math.random() * Math.PI * 2;
+            const verticalOffset = (Math.random() - 0.5) * 60;
+            
+            const newNode = new Node(
+                nodes.length,
+                shortName,
+                selectedNode.x + Math.cos(angle) * offset,
+                selectedNode.y + verticalOffset,
+                selectedNode.z + Math.sin(angle) * offset,
+                true, // isComment
+                author,
+                text,
+                selectedNode.id
+            );
+            
+            // Add bidirectional connection
+            newNode.connections.push(selectedNode.id);
+            selectedNode.connections.push(newNode.id);
+            
+            // Add to nodes array
+            nodes.push(newNode);
             
             // Clear inputs
             document.getElementById('authorInput').value = '';
             document.getElementById('commentInput').value = '';
             
-            // Refresh panel
-            openNodePanel(selectedNode);
+            // Refresh panel and travel to new node
+            travelToNode(newNode);
+            openNodePanel(newNode);
+            
+            // Show notification
+            showNotification('New node created!');
+        }
+        
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(107, 0, 255, 0.95);
+                color: white;
+                padding: 20px 40px;
+                border-radius: 8px;
+                font-size: 1.2rem;
+                z-index: 1000;
+                box-shadow: 0 0 30px rgba(183, 33, 255, 0.8);
+                animation: fadeOut 2s ease-out forwards;
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 2000);
         }
 
         function travelToRandom() {
