@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rhizome Network</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #b721ff;
+            overflow: hidden;
+            height: 100vh;
+            cursor: grab;
+        }
+
+        body.grabbing {
+            cursor: grabbing;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlay */
+        .ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Instructions */
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 20px;
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid rgba(107, 0, 255, 0.5);
+            border-radius: 4px;
+            pointer-events: auto;
+            max-width: 300px;
+        }
+
+        .instructions h3 {
+            color: #b721ff;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .instructions p {
+            color: #8e44ad;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 5px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #b721ff;
+            font-size: 1.5rem;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .close-btn:hover {
+            color: #fff;
+        }
+
+        /* Node Info Panel */
+        .node-panel {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            width: 350px;
+            max-height: 80vh;
+            background: rgba(10, 10, 10, 0.95);
+            border: 2px solid #6b00ff;
+            border-radius: 8px;
+            padding: 20px;
+            pointer-events: auto;
+            display: none;
+            overflow-y: auto;
+            box-shadow: 0 0 30px rgba(107, 0, 255, 0.5);
+        }
+
+        .node-panel.active {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50%) translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(-50%) translateX(0);
+            }
+        }
+
+        .node-panel h2 {
+            color: #b721ff;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+            text-shadow: 0 0 10px rgba(183, 33, 255, 0.5);
+        }
+
+        .node-panel .node-id {
+            color: #8e44ad;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        .comments-section {
+            margin-top: 20px;
+        }
+
+        .comments-section h3 {
+            color: #b721ff;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .comment {
+            background: rgba(107, 0, 255, 0.1);
+            border-left: 3px solid #6b00ff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .comment-author {
+            color: #b721ff;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .comment-text {
+            color: #fff;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .comment-time {
+            color: #666;
+            font-size: 0.75rem;
+            margin-top: 5px;
+        }
+
+        .comment-form {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(107, 0, 255, 0.3);
+        }
+
+        .comment-form input,
+        .comment-form textarea {
+            width: 100%;
+            background: rgba(107, 0, 255, 0.1);
+            border: 1px solid #6b00ff;
+            color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .comment-form input:focus,
+        .comment-form textarea:focus {
+            outline: none;
+            border-color: #b721ff;
+            box-shadow: 0 0 10px rgba(183, 33, 255, 0.3);
+        }
+
+        .comment-form textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .comment-form button {
+            background: #6b00ff;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .comment-form button:hover {
+            background: #b721ff;
+            box-shadow: 0 0 20px rgba(183, 33, 255, 0.5);
+        }
+
+        /* Navigation Controls */
+        .nav-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+        }
+
+        .nav-btn {
+            background: rgba(107, 0, 255, 0.3);
+            border: 2px solid #6b00ff;
+            color: #b721ff;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .nav-btn:hover {
+            background: rgba(107, 0, 255, 0.5);
+            border-color: #b721ff;
+            box-shadow: 0 0 20px rgba(107, 0, 255, 0.6);
+            color: #fff;
+        }
+
+        .nav-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Current Node Indicator */
+        .current-node {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid rgba(107, 0, 255, 0.5);
+            padding: 15px 20px;
+            border-radius: 4px;
+            pointer-events: auto;
+        }
+
+        .current-node h4 {
+            color: #6b00ff;
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .current-node p {
+            color: #b721ff;
+            font-size: 1.2rem;
+        }
+
+        /* Scrollbar styling */
+        .node-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .node-panel::-webkit-scrollbar-track {
+            background: rgba(107, 0, 255, 0.1);
+        }
+
+        .node-panel::-webkit-scrollbar-thumb {
+            background: #6b00ff;
+            border-radius: 4px;
+        }
+
+        .node-panel::-webkit-scrollbar-thumb:hover {
+            background: #b721ff;
+        }
+
+        @media (max-width: 768px) {
+            .node-panel {
+                width: calc(100% - 40px);
+                right: 20px;
+                left: 20px;
+                max-height: 60vh;
+            }
+
+            .instructions {
+                font-size: 0.85rem;
+                max-width: calc(100% - 40px);
+            }
+
+            .nav-controls {
+                flex-direction: column;
+                bottom: 10px;
+            }
+
+            .current-node {
+                top: 10px;
+                right: 10px;
+                padding: 10px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="rhizomeCanvas"></canvas>
+
+    <div class="ui-overlay">
+        <div class="instructions" id="instructions">
+            <button class="close-btn" onclick="closeInstructions()">×</button>
+            <h3>◈ Navigation</h3>
+            <p><strong>Drag:</strong> Rotate view</p>
+            <p><strong>Scroll:</strong> Zoom in/out</p>
+            <p><strong>Click node:</strong> View & comment</p>
+            <p><strong>Travel:</strong> Move to connected nodes</p>
+        </div>
+
+        <div class="current-node">
+            <h4>Current Node</h4>
+            <p id="currentNodeDisplay">—</p>
+        </div>
+
+        <div class="node-panel" id="nodePanel">
+            <button class="close-btn" onclick="closePanel()">×</button>
+            <h2 id="nodeName">Node Name</h2>
+            <div class="node-id" id="nodeId">ID: —</div>
+            
+            <div class="comments-section">
+                <h3>Comments</h3>
+                <div id="commentsList"></div>
+                
+                <div class="comment-form">
+                    <input type="text" id="authorInput" placeholder="Your name" />
+                    <textarea id="commentInput" placeholder="Leave a comment..."></textarea>
+                    <button onclick="addComment()">Post Comment</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-controls">
+            <button class="nav-btn" onclick="travelToRandom()">↻ Random Node</button>
+            <button class="nav-btn" onclick="travelToConnected()">→ Next Connected</button>
+            <button class="nav-btn" onclick="resetView()">◎ Reset View</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('rhizomeCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        
+        // Camera and interaction
+        let camera = {
+            x: 0,
+            y: 0,
+            z: -500,
+            rotX: 0,
+            rotY: 0,
+            targetRotX: 0,
+            targetRotY: 0
+        };
+
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let selectedNode = null;
+        let currentNode = null;
+
+        // Node data structure
+        class Node {
+            constructor(id, name, x, y, z) {
+                this.id = id;
+                this.name = name;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.connections = [];
+                this.comments = [];
+            }
+        }
+
+        // Generate rhizome network
+        const nodes = [];
+        const nodeCount = 30;
+        const topics = [
+            'Origins', 'Connections', 'Emergence', 'Networks', 'Flow',
+            'Roots', 'Growth', 'Multiplicity', 'Becoming', 'Plateau',
+            'Assemblage', 'Deterritorialization', 'Lines', 'Strata',
+            'Smooth Space', 'Rhizome', 'Arborescent', 'Nomad',
+            'Molecular', 'Segmentarity', 'Desire', 'Machine',
+            'Body without Organs', 'Intensity', 'Virtual', 'Actual',
+            'Difference', 'Repetition', 'Fold', 'Territory'
+        ];
+
+        // Create nodes in 3D space
+        for (let i = 0; i < nodeCount; i++) {
+            const angle = (i / nodeCount) * Math.PI * 2;
+            const radius = 300 + Math.random() * 200;
+            const height = (Math.random() - 0.5) * 400;
+            
+            nodes.push(new Node(
+                i,
+                topics[i] || `Node ${i}`,
+                Math.cos(angle) * radius,
+                height,
+                Math.sin(angle) * radius
+            ));
+        }
+
+        // Create connections
+        nodes.forEach((node, i) => {
+            const connectionCount = 2 + Math.floor(Math.random() * 3);
+            for (let j = 0; j < connectionCount; j++) {
+                let targetIndex = Math.floor(Math.random() * nodes.length);
+                while (targetIndex === i || node.connections.includes(targetIndex)) {
+                    targetIndex = Math.floor(Math.random() * nodes.length);
+                }
+                node.connections.push(targetIndex);
+                
+                // Make connections bidirectional
+                if (!nodes[targetIndex].connections.includes(i)) {
+                    nodes[targetIndex].connections.push(i);
+                }
+            }
+        });
+
+        // Set initial current node
+        currentNode = nodes[0];
+        updateCurrentNodeDisplay();
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        function project(x, y, z) {
+            // Apply camera rotation
+            const cosX = Math.cos(camera.rotX);
+            const sinX = Math.sin(camera.rotX);
+            const cosY = Math.cos(camera.rotY);
+            const sinY = Math.sin(camera.rotY);
+
+            // Rotate around Y axis
+            let x1 = x * cosY - z * sinY;
+            let z1 = x * sinY + z * cosY;
+            
+            // Rotate around X axis
+            let y1 = y * cosX - z1 * sinX;
+            let z2 = y * sinX + z1 * cosX;
+
+            // Perspective projection
+            const perspective = 1000;
+            const scale = perspective / (perspective + z2 + camera.z);
+            
+            return {
+                x: x1 * scale + width / 2,
+                y: y1 * scale + height / 2,
+                scale: scale,
+                z: z2
+            };
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Smooth camera movement
+            camera.rotX += (camera.targetRotX - camera.rotX) * 0.1;
+            camera.rotY += (camera.targetRotY - camera.rotY) * 0.1;
+
+            // Sort nodes by depth for proper rendering
+            const sortedNodes = nodes.map((node, index) => ({
+                node,
+                index,
+                projected: project(node.x, node.y, node.z)
+            })).sort((a, b) => a.projected.z - b.projected.z);
+
+            // Draw connections
+            ctx.strokeStyle = 'rgba(107, 0, 255, 0.3)';
+            ctx.lineWidth = 1;
+            
+            sortedNodes.forEach(({ node, projected: proj1 }) => {
+                node.connections.forEach(connIndex => {
+                    const connNode = nodes[connIndex];
+                    const proj2 = project(connNode.x, connNode.y, connNode.z);
+                    
+                    // Only draw if both nodes are in front of camera
+                    if (proj1.z > -500 && proj2.z > -500) {
+                        const opacity = Math.min(proj1.scale, proj2.scale) * 0.5;
+                        ctx.strokeStyle = `rgba(107, 0, 255, ${opacity})`;
+                        ctx.lineWidth = Math.max(0.5, Math.min(proj1.scale, proj2.scale) * 2);
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(proj1.x, proj1.y);
+                        ctx.lineTo(proj2.x, proj2.y);
+                        ctx.stroke();
+                    }
+                });
+            });
+
+            // Draw nodes
+            sortedNodes.forEach(({ node, index, projected: proj }) => {
+                if (proj.z < -500) return;
+
+                const radius = 5 * proj.scale;
+                const isSelected = selectedNode && selectedNode.id === node.id;
+                const isCurrent = currentNode && currentNode.id === node.id;
+
+                // Glow effect
+                const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, radius * 4);
+                
+                if (isCurrent) {
+                    gradient.addColorStop(0, 'rgba(183, 33, 255, 0.8)');
+                    gradient.addColorStop(0.5, 'rgba(183, 33, 255, 0.4)');
+                } else if (isSelected) {
+                    gradient.addColorStop(0, 'rgba(255, 0, 255, 0.6)');
+                    gradient.addColorStop(0.5, 'rgba(255, 0, 255, 0.3)');
+                } else {
+                    gradient.addColorStop(0, 'rgba(183, 33, 255, 0.5)');
+                    gradient.addColorStop(0.5, 'rgba(107, 0, 255, 0.3)');
+                }
+                gradient.addColorStop(1, 'rgba(107, 0, 255, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, radius * 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Node center
+                ctx.fillStyle = isCurrent ? '#ffffff' : (isSelected ? '#ff00ff' : '#b721ff');
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Node label
+                if (proj.scale > 0.7) {
+                    ctx.fillStyle = '#b721ff';
+                    ctx.font = `${12 * proj.scale}px "Courier New"`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(node.name, proj.x, proj.y - radius * 3);
+                }
+            });
+
+            requestAnimationFrame(draw);
+        }
+
+        // Mouse interaction
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            document.body.classList.add('grabbing');
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                
+                camera.targetRotY += deltaX * 0.01;
+                camera.targetRotX += deltaY * 0.01;
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.classList.remove('grabbing');
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (isDragging) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Find clicked node
+            let closestNode = null;
+            let closestDist = Infinity;
+
+            nodes.forEach(node => {
+                const proj = project(node.x, node.y, node.z);
+                const dist = Math.hypot(proj.x - mouseX, proj.y - mouseY);
+                const radius = 5 * proj.scale;
+                
+                if (dist < radius * 4 && dist < closestDist) {
+                    closestNode = node;
+                    closestDist = dist;
+                }
+            });
+
+            if (closestNode) {
+                openNodePanel(closestNode);
+            }
+        });
+
+        // Zoom
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            camera.z += e.deltaY * 0.5;
+            camera.z = Math.max(-2000, Math.min(-100, camera.z));
+        });
+
+        function openNodePanel(node) {
+            selectedNode = node;
+            document.getElementById('nodeName').textContent = node.name;
+            document.getElementById('nodeId').textContent = `ID: ${node.id}`;
+            
+            // Display comments
+            const commentsList = document.getElementById('commentsList');
+            commentsList.innerHTML = '';
+            
+            if (node.comments.length === 0) {
+                commentsList.innerHTML = '<p style="color: #666; font-style: italic;">No comments yet. Be the first!</p>';
+            } else {
+                node.comments.forEach(comment => {
+                    const commentDiv = document.createElement('div');
+                    commentDiv.className = 'comment';
+                    commentDiv.innerHTML = `
+                        <div class="comment-author">${comment.author}</div>
+                        <div class="comment-text">${comment.text}</div>
+                        <div class="comment-time">${comment.time}</div>
+                    `;
+                    commentsList.appendChild(commentDiv);
+                });
+            }
+            
+            document.getElementById('nodePanel').classList.add('active');
+        }
+
+        function closePanel() {
+            document.getElementById('nodePanel').classList.remove('active');
+            selectedNode = null;
+        }
+
+        function closeInstructions() {
+            document.getElementById('instructions').style.display = 'none';
+        }
+
+        function addComment() {
+            if (!selectedNode) return;
+            
+            const author = document.getElementById('authorInput').value.trim() || 'Anonymous';
+            const text = document.getElementById('commentInput').value.trim();
+            
+            if (!text) {
+                alert('Please enter a comment');
+                return;
+            }
+            
+            const comment = {
+                author: author,
+                text: text,
+                time: new Date().toLocaleString()
+            };
+            
+            selectedNode.comments.push(comment);
+            
+            // Clear inputs
+            document.getElementById('authorInput').value = '';
+            document.getElementById('commentInput').value = '';
+            
+            // Refresh panel
+            openNodePanel(selectedNode);
+        }
+
+        function travelToRandom() {
+            const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+            travelToNode(randomNode);
+        }
+
+        function travelToConnected() {
+            if (!currentNode || currentNode.connections.length === 0) {
+                travelToRandom();
+                return;
+            }
+            
+            const connectedIndex = currentNode.connections[Math.floor(Math.random() * currentNode.connections.length)];
+            travelToNode(nodes[connectedIndex]);
+        }
+
+        function travelToNode(node) {
+            currentNode = node;
+            updateCurrentNodeDisplay();
+            
+            // Animate camera to node
+            const targetRotY = Math.atan2(node.x, node.z);
+            const targetRotX = Math.atan2(node.y, Math.hypot(node.x, node.z));
+            
+            camera.targetRotY = targetRotY;
+            camera.targetRotX = targetRotX;
+        }
+
+        function updateCurrentNodeDisplay() {
+            document.getElementById('currentNodeDisplay').textContent = currentNode ? currentNode.name : '—';
+        }
+
+        function resetView() {
+            camera.targetRotX = 0;
+            camera.targetRotY = 0;
+            camera.z = -500;
+        }
+
+        // Initialize
+        window.addEventListener('resize', resize);
+        resize();
+        draw();
+    </script>
+</body>
+</html>
