@@ -1,0 +1,1854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rhizome Network</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #b721ff;
+            overflow: hidden;
+            height: 100vh;
+            cursor: grab;
+        }
+
+        body.grabbing {
+            cursor: grabbing;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlay */
+        .ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Instructions */
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 20px;
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid rgba(107, 0, 255, 0.5);
+            border-radius: 4px;
+            pointer-events: auto;
+            max-width: 300px;
+        }
+
+        .instructions h3 {
+            color: #b721ff;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .instructions p {
+            color: #8e44ad;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 5px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #b721ff;
+            font-size: 1.5rem;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .close-btn:hover {
+            color: #fff;
+        }
+
+        /* Node Info Panel */
+        .node-panel {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            width: 350px;
+            max-height: 80vh;
+            background: rgba(10, 10, 10, 0.95);
+            border: 2px solid #6b00ff;
+            border-radius: 8px;
+            padding: 20px;
+            pointer-events: auto;
+            display: none;
+            overflow-y: auto;
+            box-shadow: 0 0 30px rgba(107, 0, 255, 0.5);
+        }
+
+        .node-panel.active {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50%) translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(-50%) translateX(0);
+            }
+        }
+
+        .node-panel h2 {
+            color: #b721ff;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+            text-shadow: 0 0 10px rgba(183, 33, 255, 0.5);
+        }
+
+        .node-panel .node-id {
+            color: #8e44ad;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        .comments-section {
+            margin-top: 20px;
+        }
+
+        .comments-section h3 {
+            color: #b721ff;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .comment {
+            background: rgba(107, 0, 255, 0.1);
+            border-left: 3px solid #6b00ff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .comment-author {
+            color: #b721ff;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .comment-text {
+            color: #fff;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .comment-time {
+            color: #666;
+            font-size: 0.75rem;
+            margin-top: 5px;
+        }
+
+        .comment-form {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(107, 0, 255, 0.3);
+        }
+
+        .comment-form input,
+        .comment-form textarea {
+            width: 100%;
+            background: rgba(107, 0, 255, 0.1);
+            border: 1px solid #6b00ff;
+            color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .comment-form input:focus,
+        .comment-form textarea:focus {
+            outline: none;
+            border-color: #b721ff;
+            box-shadow: 0 0 10px rgba(183, 33, 255, 0.3);
+        }
+
+        .comment-form textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .comment-form button {
+            background: #6b00ff;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .comment-form button:hover {
+            background: #b721ff;
+            box-shadow: 0 0 20px rgba(183, 33, 255, 0.5);
+        }
+
+        /* Navigation Controls */
+        .nav-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+        }
+
+        .nav-btn {
+            background: rgba(107, 0, 255, 0.3);
+            border: 2px solid #6b00ff;
+            color: #b721ff;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .nav-btn:hover {
+            background: rgba(107, 0, 255, 0.5);
+            border-color: #b721ff;
+            box-shadow: 0 0 20px rgba(107, 0, 255, 0.6);
+            color: #fff;
+        }
+
+        .nav-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Rhizome Selector */
+        .rhizome-selector {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 80%;
+        }
+        
+        .rhizome-btn {
+            background: rgba(107, 0, 255, 0.2);
+            border: 1px solid #6b00ff;
+            color: #8e44ad;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            font-size: 0.8rem;
+        }
+        
+        .rhizome-btn.active {
+            background: rgba(107, 0, 255, 0.5);
+            border-color: #b721ff;
+            color: #b721ff;
+            box-shadow: 0 0 15px rgba(107, 0, 255, 0.5);
+        }
+        
+        .rhizome-btn:hover {
+            background: rgba(107, 0, 255, 0.4);
+            border-color: #b721ff;
+            color: #fff;
+        }
+
+        /* Current Node Indicator */
+        .current-node {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid rgba(107, 0, 255, 0.5);
+            padding: 15px 20px;
+            border-radius: 4px;
+            pointer-events: auto;
+        }
+
+        .current-node h4 {
+            color: #6b00ff;
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .current-node p {
+            color: #b721ff;
+            font-size: 1.2rem;
+        }
+        
+        /* Keyboard Hint */
+        .keyboard-hint {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: rgba(10, 10, 10, 0.95);
+            border: 1px solid rgba(107, 0, 255, 0.5);
+            padding: 10px 15px;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            font-size: 0.8rem;
+            color: #8e44ad;
+        }
+        
+        .keyboard-hint.show {
+            opacity: 1;
+        }
+        
+        .keyboard-hint .arrow-keys {
+            color: #b721ff;
+            font-weight: bold;
+        }
+        
+        /* Root Visualization Slider */
+        .root-slider-container {
+            position: absolute;
+            left: 20px;
+            bottom: 20px;
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid rgba(107, 0, 255, 0.5);
+            padding: 15px 20px;
+            border-radius: 4px;
+            pointer-events: auto;
+            min-width: 250px;
+        }
+        
+        .root-slider-container h4 {
+            color: #b721ff;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .enliven-toggle {
+            width: 100%;
+            background: rgba(107, 0, 255, 0.2);
+            border: 2px solid #6b00ff;
+            color: #8e44ad;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+        }
+        
+        .enliven-toggle.active {
+            background: rgba(107, 0, 255, 0.5);
+            border-color: #b721ff;
+            color: #b721ff;
+            box-shadow: 0 0 15px rgba(183, 33, 255, 0.5);
+        }
+        
+        .enliven-toggle:hover {
+            background: rgba(107, 0, 255, 0.4);
+            border-color: #b721ff;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(107, 0, 255, 0.4);
+        }
+        
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.75rem;
+            color: #8e44ad;
+        }
+        
+        .root-slider {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(to right, rgba(107, 0, 255, 0.3), rgba(183, 33, 255, 0.6));
+            outline: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .root-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #b721ff;
+            border: 2px solid #6b00ff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(183, 33, 255, 0.8);
+            transition: all 0.3s ease;
+        }
+        
+        .root-slider::-webkit-slider-thumb:hover {
+            background: #fff;
+            box-shadow: 0 0 20px rgba(183, 33, 255, 1);
+            transform: scale(1.2);
+        }
+        
+        .root-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #b721ff;
+            border: 2px solid #6b00ff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(183, 33, 255, 0.8);
+            transition: all 0.3s ease;
+        }
+        
+        .root-slider::-moz-range-thumb:hover {
+            background: #fff;
+            box-shadow: 0 0 20px rgba(183, 33, 255, 1);
+            transform: scale(1.2);
+        }
+
+        /* Scrollbar styling */
+        .node-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .node-panel::-webkit-scrollbar-track {
+            background: rgba(107, 0, 255, 0.1);
+        }
+
+        .node-panel::-webkit-scrollbar-thumb {
+            background: #6b00ff;
+            border-radius: 4px;
+        }
+
+        .node-panel::-webkit-scrollbar-thumb:hover {
+            background: #b721ff;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
+        }
+
+        @media (max-width: 768px) {
+            .node-panel {
+                width: calc(100% - 40px);
+                right: 20px;
+                left: 20px;
+                max-height: 60vh;
+            }
+
+            .instructions {
+                font-size: 0.85rem;
+                max-width: calc(100% - 40px);
+            }
+
+            .nav-controls {
+                flex-direction: column;
+                bottom: 10px;
+            }
+            
+            .rhizome-selector {
+                bottom: 150px;
+                max-width: 90%;
+            }
+            
+            .rhizome-btn {
+                font-size: 0.7rem;
+                padding: 6px 12px;
+            }
+            
+            .root-slider-container {
+                left: 10px;
+                bottom: 10px;
+                min-width: 200px;
+                padding: 10px 15px;
+            }
+            
+            .root-slider-container h4 {
+                font-size: 0.75rem;
+                margin-bottom: 8px;
+            }
+            
+            .enliven-toggle {
+                font-size: 0.75rem;
+                padding: 8px 12px;
+                margin-bottom: 12px;
+            }
+            
+            .slider-labels {
+                font-size: 0.65rem;
+            }
+
+            .current-node {
+                top: 10px;
+                right: 10px;
+                padding: 10px 15px;
+            }
+            
+            .keyboard-hint {
+                top: 70px;
+                right: 10px;
+                padding: 8px 12px;
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="rhizomeCanvas"></canvas>
+
+    <div class="ui-overlay">
+        <div class="instructions" id="instructions">
+            <button class="close-btn" onclick="closeInstructions()">×</button>
+            <h3>◈ Navigation</h3>
+            <p><strong>Drag:</strong> Rotate view</p>
+            <p><strong>Scroll:</strong> Zoom in/out</p>
+            <p><strong>Arrow keys:</strong> Move camera center</p>
+            <p><strong>Click node:</strong> View & add comments</p>
+            <p><strong>Comment:</strong> Creates new connected node</p>
+            <p><strong>Remove:</strong> Delete any node</p>
+            <p><strong>Glow:</strong> Fades as nodes age</p>
+            <p><strong>Root slider:</strong> Transform connections</p>
+            <p><strong>Enliven:</strong> Freeze/unfreeze animation</p>
+            <p><strong>5 removals:</strong> New rhizome instance</p>
+        </div>
+
+        <div class="current-node">
+            <h4>Current Node</h4>
+            <p id="currentNodeDisplay">—</p>
+        </div>
+        
+        <div class="keyboard-hint" id="keyboardHint">
+            Use <span class="arrow-keys">← ↑ ↓ →</span> to pan view
+        </div>
+        
+        <div class="root-slider-container">
+            <h4>Root Visualization</h4>
+            <button class="enliven-toggle active" id="enlivenToggle" onclick="toggleEnliven()">
+                ◈ Enliven: ON
+            </button>
+            <div class="slider-labels">
+                <span>Straight Lines</span>
+                <span>Organic Roots</span>
+            </div>
+            <input type="range" min="0" max="100" value="0" class="root-slider" id="rootSlider">
+        </div>
+
+        <div class="node-panel" id="nodePanel">
+            <button class="close-btn" onclick="closePanel()">×</button>
+            <h2 id="nodeName">Node Name</h2>
+            <div class="node-id" id="nodeId">ID: —</div>
+            <button class="nav-btn" style="width: 100%; margin-bottom: 15px;" onclick="removeNode()">🗑 Remove Node</button>
+            
+            <div class="comments-section">
+                <h3>Connected Comments</h3>
+                <div id="commentsList"></div>
+                
+                <div class="comment-form">
+                    <input type="text" id="authorInput" placeholder="Your name" />
+                    <textarea id="commentInput" placeholder="Add a comment (creates new node)..."></textarea>
+                    <button onclick="addComment()">Create Node</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-controls">
+            <button class="nav-btn" onclick="travelToRandom()">↻ Random Node</button>
+            <button class="nav-btn" onclick="travelToConnected()">→ Next Connected</button>
+            <button class="nav-btn" onclick="resetView()">◎ Reset View</button>
+        </div>
+        
+        <div class="rhizome-selector" id="rhizomeSelector">
+            <!-- Rhizome instance buttons will be added here dynamically -->
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('rhizomeCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        
+        // Camera and interaction
+        let camera = {
+            x: 0,
+            y: 0,
+            z: -500,
+            rotX: 0,
+            rotY: 0,
+            targetRotX: 0,
+            targetRotY: 0,
+            offsetX: 0,
+            offsetY: 0,
+            targetOffsetX: 0,
+            targetOffsetY: 0
+        };
+
+        let isDragging = false;
+        let mouseHasMoved = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let selectedNode = null;
+        let currentNode = null;
+        
+        // Rhizome instance management
+        let rhizomes = [];
+        let currentRhizomeIndex = 0;
+        let deletionCount = 0;
+        const DELETIONS_FOR_NEW_RHIZOME = 5;
+        
+        // Transition state
+        let isTransitioning = false;
+        let transitionProgress = 0;
+        let transitionParticles = [];
+        let oldNodes = [];
+        let newNodes = [];
+        
+        // Root visualization
+        let rootIntensity = 0; // 0 = straight lines, 1 = full organic roots
+        let pulsePhase = 0;
+        let isEnlivened = true; // Controls animation of edges
+
+        // Node data structure
+        class Node {
+            constructor(id, name, x, y, z, isComment = false, author = null, text = null, parentId = null) {
+                this.id = id;
+                this.name = name;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.connections = [];
+                this.isComment = isComment;
+                this.author = author;
+                this.text = text;
+                this.parentId = parentId;
+                this.timestamp = new Date().toLocaleString();
+                this.createdAt = Date.now();
+            }
+            
+            getAge() {
+                return Date.now() - this.createdAt;
+            }
+            
+            getGlowIntensity() {
+                // Glow fades over 5 minutes (300000ms)
+                const maxAge = 300000;
+                const age = this.getAge();
+                return Math.max(0.3, 1 - (age / maxAge));
+            }
+        }
+
+        // Generate rhizome network
+        const topics = [
+            'Origins', 'Connections', 'Emergence', 'Networks', 'Flow',
+            'Roots', 'Growth', 'Multiplicity', 'Becoming', 'Plateau',
+            'Assemblage', 'Deterritorialization', 'Lines', 'Strata',
+            'Smooth Space', 'Rhizome', 'Arborescent', 'Nomad',
+            'Molecular', 'Segmentarity', 'Desire', 'Machine',
+            'Body without Organs', 'Intensity', 'Virtual', 'Actual',
+            'Difference', 'Repetition', 'Fold', 'Territory'
+        ];
+
+        function createInitialRhizome() {
+            const newNodes = [];
+            const nodeCount = 30;
+            
+            // Create nodes in 3D space
+            for (let i = 0; i < nodeCount; i++) {
+                const angle = (i / nodeCount) * Math.PI * 2;
+                const radius = 300 + Math.random() * 200;
+                const height = (Math.random() - 0.5) * 400;
+                
+                newNodes.push(new Node(
+                    i,
+                    topics[i] || `Node ${i}`,
+                    Math.cos(angle) * radius,
+                    height,
+                    Math.sin(angle) * radius
+                ));
+            }
+
+            // Create connections
+            newNodes.forEach((node, i) => {
+                const connectionCount = 2 + Math.floor(Math.random() * 3);
+                for (let j = 0; j < connectionCount; j++) {
+                    let targetIndex = Math.floor(Math.random() * newNodes.length);
+                    while (targetIndex === i || node.connections.includes(targetIndex)) {
+                        targetIndex = Math.floor(Math.random() * newNodes.length);
+                    }
+                    node.connections.push(targetIndex);
+                    
+                    // Make connections bidirectional
+                    if (!newNodes[targetIndex].connections.includes(i)) {
+                        newNodes[targetIndex].connections.push(i);
+                    }
+                }
+            });
+            
+            return newNodes;
+        }
+        
+        let nodes = createInitialRhizome();
+        
+        // Save initial rhizome as first instance
+        rhizomes.push({
+            nodes: JSON.parse(JSON.stringify(nodes.map(n => ({
+                id: n.id,
+                name: n.name,
+                x: n.x,
+                y: n.y,
+                z: n.z,
+                connections: [...n.connections],
+                isComment: n.isComment,
+                author: n.author,
+                text: n.text,
+                parentId: n.parentId,
+                timestamp: n.timestamp,
+                createdAt: n.createdAt
+            })))),
+            deletionCount: 0,
+            created: Date.now()
+        });
+        
+        // Set initial current node
+        currentNode = nodes[0];
+        updateCurrentNodeDisplay();
+        
+        function getNodeById(id) {
+            return nodes.find(n => n.id === id);
+        }
+        
+        function drawConnection(proj1, proj2, node1, node2) {
+            const baseOpacity = Math.min(proj1.scale, proj2.scale) * 0.5;
+            const baseWidth = Math.max(0.5, Math.min(proj1.scale, proj2.scale) * 2);
+            
+            // Calculate pulse for glow effect - only animate when enlivened
+            const pulseValue = isEnlivened ? (Math.sin(pulsePhase + node1.id * 0.5) * 0.5 + 0.5) : 0.5;
+            const glowIntensity = pulseValue * rootIntensity * 1.8;
+            
+            if (rootIntensity < 0.1) {
+                // Draw straight line
+                ctx.strokeStyle = `rgba(107, 0, 255, ${Math.min(baseOpacity, 0.5)})`;
+                ctx.lineWidth = baseWidth;
+                ctx.beginPath();
+                ctx.moveTo(proj1.x, proj1.y);
+                ctx.lineTo(proj2.x, proj2.y);
+                ctx.stroke();
+            } else {
+                // Draw lightning-like connection
+                const dx = proj2.x - proj1.x;
+                const dy = proj2.y - proj1.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Simple seeded random function for deterministic generation when frozen
+                const seededRandom = (seed) => {
+                    if (isEnlivened) {
+                        return Math.random();
+                    }
+                    const x = Math.sin(seed) * 10000;
+                    return x - Math.floor(x);
+                };
+                
+                // Create jagged lightning path
+                const segments = Math.floor(5 + rootIntensity * 10);
+                const points = [{x: proj1.x, y: proj1.y}];
+                
+                for (let i = 1; i < segments; i++) {
+                    const t = i / segments;
+                    const baseX = proj1.x + dx * t;
+                    const baseY = proj1.y + dy * t;
+                    
+                    // Add jagged deviation with seeded random
+                    const perpX = -dy / distance;
+                    const perpY = dx / distance;
+                    const seed = node1.id * 1000 + node2.id * 100 + i;
+                    const jitter = (seededRandom(seed) - 0.5) * distance * 0.15 * rootIntensity;
+                    
+                    points.push({
+                        x: baseX + perpX * jitter,
+                        y: baseY + perpY * jitter
+                    });
+                }
+                points.push({x: proj2.x, y: proj2.y});
+                
+                // Draw white-hot glow layers
+                if (rootIntensity > 0.3) {
+                    // Outer purple/blue corona
+                    const outerGlow = 12 + glowIntensity * 20;
+                    ctx.strokeStyle = `rgba(147, 51, 234, ${glowIntensity * 0.2})`;
+                    ctx.lineWidth = baseWidth + outerGlow;
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.stroke();
+                    
+                    // Blue-white layer
+                    const midGlow = 6 + glowIntensity * 12;
+                    ctx.strokeStyle = `rgba(150, 150, 255, ${glowIntensity * 0.5})`;
+                    ctx.lineWidth = baseWidth + midGlow;
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.stroke();
+                    
+                    // Bright white core
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${glowIntensity * 0.8})`;
+                    ctx.lineWidth = baseWidth + 3 + glowIntensity * 4;
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.stroke();
+                }
+                
+                // Draw main lightning bolt (electric purple-blue)
+                ctx.strokeStyle = `rgba(200, 150, 255, ${Math.min(baseOpacity + glowIntensity * 0.6, 0.95)})`;
+                ctx.lineWidth = baseWidth * (1 + rootIntensity * 0.7);
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
+                ctx.stroke();
+                
+                // Draw lightning branches
+                if (rootIntensity > 0.3) {
+                    const branchDensity = Math.floor(rootIntensity * 12 + 3);
+                    
+                    for (let i = 0; i < branchDensity; i++) {
+                        // Pick point along main bolt with seeded random
+                        const segSeed = node1.id * 10000 + node2.id * 1000 + i * 10;
+                        const segmentIndex = Math.floor(seededRandom(segSeed) * (points.length - 1));
+                        const bx = points[segmentIndex].x;
+                        const by = points[segmentIndex].y;
+                        
+                        // Create jagged branch
+                        const branchLength = (12 + rootIntensity * 35) * (0.7 + seededRandom(segSeed + 1) * 0.6);
+                        const branchAngle = (seededRandom(segSeed + 2) - 0.5) * Math.PI * 0.8;
+                        const baseAngle = Math.atan2(dy, dx);
+                        
+                        // Jagged path for branch
+                        const branchSegs = Math.floor(3 + rootIntensity * 4);
+                        const branchPoints = [{x: bx, y: by}];
+                        
+                        for (let j = 1; j <= branchSegs; j++) {
+                            const bt = j / branchSegs;
+                            const targetX = bx + Math.cos(baseAngle + branchAngle) * branchLength * bt;
+                            const targetY = by + Math.sin(baseAngle + branchAngle) * branchLength * bt;
+                            const jitterSeed = segSeed + j * 100;
+                            const jitterAmount = branchLength * 0.2 * (seededRandom(jitterSeed) - 0.5);
+                            const jitterAngle = baseAngle + branchAngle + Math.PI / 2;
+                            
+                            branchPoints.push({
+                                x: targetX + Math.cos(jitterAngle) * jitterAmount,
+                                y: targetY + Math.sin(jitterAngle) * jitterAmount
+                            });
+                        }
+                        
+                        // Branch white-hot glow
+                        if (rootIntensity > 0.5) {
+                            ctx.strokeStyle = `rgba(200, 180, 255, ${glowIntensity * 0.3})`;
+                            ctx.lineWidth = baseWidth * 1.2 + glowIntensity * 4;
+                            ctx.beginPath();
+                            ctx.moveTo(branchPoints[0].x, branchPoints[0].y);
+                            for (let j = 1; j < branchPoints.length; j++) {
+                                ctx.lineTo(branchPoints[j].x, branchPoints[j].y);
+                            }
+                            ctx.stroke();
+                            
+                            ctx.strokeStyle = `rgba(255, 255, 255, ${glowIntensity * 0.6})`;
+                            ctx.lineWidth = baseWidth * 0.8 + glowIntensity * 2;
+                            ctx.beginPath();
+                            ctx.moveTo(branchPoints[0].x, branchPoints[0].y);
+                            for (let j = 1; j < branchPoints.length; j++) {
+                                ctx.lineTo(branchPoints[j].x, branchPoints[j].y);
+                            }
+                            ctx.stroke();
+                        }
+                        
+                        const branchOpacity = (baseOpacity + glowIntensity * 0.4) * 0.8;
+                        ctx.strokeStyle = `rgba(180, 140, 255, ${branchOpacity})`;
+                        ctx.lineWidth = baseWidth * 0.7;
+                        ctx.beginPath();
+                        ctx.moveTo(branchPoints[0].x, branchPoints[0].y);
+                        for (let j = 1; j < branchPoints.length; j++) {
+                            ctx.lineTo(branchPoints[j].x, branchPoints[j].y);
+                        }
+                        ctx.stroke();
+                        
+                        const branchEndX = branchPoints[branchPoints.length - 1].x;
+                        const branchEndY = branchPoints[branchPoints.length - 1].y;
+                        
+                        // Secondary lightning branches
+                        if (rootIntensity > 0.6) {
+                            const secondaryCount = Math.floor(rootIntensity * 4);
+                            for (let j = 0; j < secondaryCount; j++) {
+                                const secSeed = segSeed + j * 1000 + 500;
+                                const secIndex = Math.floor(seededRandom(secSeed) * (branchPoints.length - 1));
+                                const sbx = branchPoints[secIndex].x;
+                                const sby = branchPoints[secIndex].y;
+                                
+                                const secLength = branchLength * 0.5 * (0.5 + seededRandom(secSeed + 1) * 0.5);
+                                const secAngle = branchAngle + (seededRandom(secSeed + 2) - 0.5) * Math.PI * 0.9;
+                                
+                                // Jagged secondary path
+                                const secSegs = Math.floor(2 + rootIntensity * 3);
+                                const secPoints = [{x: sbx, y: sby}];
+                                
+                                for (let k = 1; k <= secSegs; k++) {
+                                    const st = k / secSegs;
+                                    const stx = sbx + Math.cos(baseAngle + secAngle) * secLength * st;
+                                    const sty = sby + Math.sin(baseAngle + secAngle) * secLength * st;
+                                    const sjitterSeed = secSeed + k * 50;
+                                    const sjitter = secLength * 0.25 * (seededRandom(sjitterSeed) - 0.5);
+                                    const sjitterAngle = baseAngle + secAngle + Math.PI / 2;
+                                    
+                                    secPoints.push({
+                                        x: stx + Math.cos(sjitterAngle) * sjitter,
+                                        y: sty + Math.sin(sjitterAngle) * sjitter
+                                    });
+                                }
+                                
+                                // Secondary branch white glow
+                                if (rootIntensity > 0.7) {
+                                    ctx.strokeStyle = `rgba(255, 255, 255, ${glowIntensity * 0.5})`;
+                                    ctx.lineWidth = baseWidth * 0.7 + glowIntensity * 2;
+                                    ctx.beginPath();
+                                    ctx.moveTo(secPoints[0].x, secPoints[0].y);
+                                    for (let k = 1; k < secPoints.length; k++) {
+                                        ctx.lineTo(secPoints[k].x, secPoints[k].y);
+                                    }
+                                    ctx.stroke();
+                                }
+                                
+                                ctx.strokeStyle = `rgba(180, 140, 255, ${branchOpacity * 0.8})`;
+                                ctx.lineWidth = baseWidth * 0.5;
+                                ctx.beginPath();
+                                ctx.moveTo(secPoints[0].x, secPoints[0].y);
+                                for (let k = 1; k < secPoints.length; k++) {
+                                    ctx.lineTo(secPoints[k].x, secPoints[k].y);
+                                }
+                                ctx.stroke();
+                                
+                                const secEndX = secPoints[secPoints.length - 1].x;
+                                const secEndY = secPoints[secPoints.length - 1].y;
+                                
+                                // Tertiary micro-bolts
+                                if (rootIntensity > 0.8) {
+                                    for (let k = 0; k < 3; k++) {
+                                        const terSeed = secSeed + k * 200 + 1000;
+                                        const terIndex = Math.floor(seededRandom(terSeed) * (secPoints.length - 1));
+                                        const tbx = secPoints[terIndex].x;
+                                        const tby = secPoints[terIndex].y;
+                                        
+                                        const terLength = secLength * 0.4;
+                                        const terAngle = secAngle + (seededRandom(terSeed + 1) - 0.5) * Math.PI;
+                                        const terEndX = tbx + Math.cos(baseAngle + terAngle) * terLength;
+                                        const terEndY = tby + Math.sin(baseAngle + terAngle) * terLength;
+                                        
+                                        // White-hot micro-bolt
+                                        ctx.strokeStyle = `rgba(255, 255, 255, ${glowIntensity * 0.7})`;
+                                        ctx.lineWidth = 1 + glowIntensity * 1.5;
+                                        ctx.beginPath();
+                                        ctx.moveTo(tbx, tby);
+                                        ctx.lineTo(terEndX, terEndY);
+                                        ctx.stroke();
+                                    }
+                                }
+                                
+                                // White-hot spark at secondary tip
+                                if (rootIntensity > 0.7) {
+                                    ctx.fillStyle = `rgba(255, 255, 255, ${branchOpacity + glowIntensity * 0.7})`;
+                                    ctx.beginPath();
+                                    ctx.arc(secEndX, secEndY, 1.5 + glowIntensity * 3, 0, Math.PI * 2);
+                                    ctx.fill();
+                                    
+                                    // Outer spark glow
+                                    ctx.fillStyle = `rgba(180, 150, 255, ${glowIntensity * 0.4})`;
+                                    ctx.beginPath();
+                                    ctx.arc(secEndX, secEndY, 3 + glowIntensity * 5, 0, Math.PI * 2);
+                                    ctx.fill();
+                                }
+                            }
+                        }
+                        
+                        // White-hot spark at primary branch tip
+                        if (rootIntensity > 0.6) {
+                            ctx.fillStyle = `rgba(255, 255, 255, ${branchOpacity + glowIntensity * 0.8})`;
+                            ctx.beginPath();
+                            ctx.arc(branchEndX, branchEndY, 2 + glowIntensity * 3.5, 0, Math.PI * 2);
+                            ctx.fill();
+                            
+                            // Outer glow
+                            ctx.fillStyle = `rgba(200, 180, 255, ${glowIntensity * 0.5})`;
+                            ctx.beginPath();
+                            ctx.arc(branchEndX, branchEndY, 4 + glowIntensity * 6, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                }
+                
+                // Add electric sparks at maximum intensity
+                if (rootIntensity > 0.75) {
+                    const sparkCount = Math.floor((rootIntensity - 0.75) * 60);
+                    for (let i = 0; i < sparkCount; i++) {
+                        const sparkSeed = node1.id * 50000 + node2.id * 5000 + i;
+                        const sparkIndex = Math.floor(seededRandom(sparkSeed) * points.length);
+                        const sx = points[sparkIndex].x;
+                        const sy = points[sparkIndex].y;
+                        
+                        const sparkLength = 2 + seededRandom(sparkSeed + 1) * 10;
+                        const sparkAngle = seededRandom(sparkSeed + 2) * Math.PI * 2;
+                        const sex = sx + Math.cos(sparkAngle) * sparkLength;
+                        const sey = sy + Math.sin(sparkAngle) * sparkLength;
+                        
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${glowIntensity * 0.8})`;
+                        ctx.lineWidth = 0.5 + glowIntensity;
+                        ctx.beginPath();
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(sex, sey);
+                        ctx.stroke();
+                        
+                        // White spark point
+                        ctx.fillStyle = `rgba(255, 255, 255, ${glowIntensity * 0.9})`;
+                        ctx.beginPath();
+                        ctx.arc(sex, sey, 1 + glowIntensity * 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+            
+        
+        function drawTransition() {
+            const progress = transitionProgress;
+            
+            // Phase 1: Dissolve old rhizome (0 - 0.4)
+            if (progress < 0.4) {
+                const dissolveProgress = progress / 0.4;
+                
+                oldNodes.forEach((node, i) => {
+                    const proj = project(node.x, node.y, node.z);
+                    if (proj.scale <= 0 || proj.scale > 10) return;
+                    
+                    // Scatter particles
+                    const particleCount = 3;
+                    for (let j = 0; j < particleCount; j++) {
+                        const angle = (i * particleCount + j) * 0.5;
+                        const distance = dissolveProgress * 200;
+                        const px = proj.x + Math.cos(angle) * distance;
+                        const py = proj.y + Math.sin(angle) * distance;
+                        const opacity = (1 - dissolveProgress) * 0.8;
+                        
+                        ctx.fillStyle = `rgba(183, 33, 255, ${opacity})`;
+                        ctx.beginPath();
+                        ctx.arc(px, py, 2 * proj.scale, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    // Draw fading node
+                    const opacity = 1 - dissolveProgress;
+                    const radius = 5 * proj.scale * (1 - dissolveProgress * 0.5);
+                    
+                    const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, radius * 4);
+                    gradient.addColorStop(0, `rgba(183, 33, 255, ${opacity * 0.5})`);
+                    gradient.addColorStop(1, 'rgba(107, 0, 255, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, radius * 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = `rgba(183, 33, 255, ${opacity})`;
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                
+                // Rotate camera during dissolution
+                camera.targetRotY += 0.02;
+            }
+            
+            // Phase 2: Swirl transition (0.4 - 0.6)
+            else if (progress < 0.6) {
+                const swirlProgress = (progress - 0.4) / 0.2;
+                
+                // Draw swirling particles
+                for (let i = 0; i < 100; i++) {
+                    const angle = i * 0.3 + swirlProgress * Math.PI * 4;
+                    const radius = 300 * (1 - swirlProgress);
+                    const x = width / 2 + Math.cos(angle) * radius;
+                    const y = height / 2 + Math.sin(angle) * radius;
+                    const opacity = Math.sin(swirlProgress * Math.PI) * 0.6;
+                    
+                    ctx.fillStyle = `rgba(183, 33, 255, ${opacity})`;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                camera.targetRotY += 0.04;
+            }
+            
+            // Phase 3: Emerge new rhizome (0.6 - 1.0)
+            else {
+                const emergeProgress = (progress - 0.6) / 0.4;
+                
+                newNodes.forEach((node, i) => {
+                    const proj = project(node.x, node.y, node.z);
+                    if (proj.scale <= 0 || proj.scale > 10) return;
+                    
+                    // Converge particles
+                    const particleCount = 3;
+                    for (let j = 0; j < particleCount; j++) {
+                        const angle = (i * particleCount + j) * 0.5;
+                        const distance = (1 - emergeProgress) * 200;
+                        const px = proj.x + Math.cos(angle) * distance;
+                        const py = proj.y + Math.sin(angle) * distance;
+                        const opacity = emergeProgress * 0.8;
+                        
+                        ctx.fillStyle = `rgba(183, 33, 255, ${opacity})`;
+                        ctx.beginPath();
+                        ctx.arc(px, py, 2 * proj.scale, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    // Draw emerging node
+                    const opacity = emergeProgress;
+                    const radius = 5 * proj.scale * (0.5 + emergeProgress * 0.5);
+                    
+                    const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, radius * 4);
+                    gradient.addColorStop(0, `rgba(183, 33, 255, ${opacity * 0.8})`);
+                    gradient.addColorStop(0.5, `rgba(107, 0, 255, ${opacity * 0.4})`);
+                    gradient.addColorStop(1, 'rgba(107, 0, 255, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, radius * 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = `rgba(183, 33, 255, ${opacity})`;
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                
+                // Draw emerging connections
+                if (emergeProgress > 0.5) {
+                    const connectionOpacity = (emergeProgress - 0.5) * 2;
+                    newNodes.forEach(node => {
+                        const proj1 = project(node.x, node.y, node.z);
+                        if (proj1.scale <= 0 || proj1.scale > 10) return;
+                        
+                        node.connections.forEach(connIndex => {
+                            const connNode = newNodes.find(n => n.id === connIndex);
+                            if (!connNode) return;
+                            
+                            const proj2 = project(connNode.x, connNode.y, connNode.z);
+                            if (proj2.scale <= 0 || proj2.scale > 10) return;
+                            
+                            ctx.strokeStyle = `rgba(107, 0, 255, ${connectionOpacity * 0.3})`;
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(proj1.x, proj1.y);
+                            ctx.lineTo(proj2.x, proj2.y);
+                            ctx.stroke();
+                        });
+                    });
+                }
+            }
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        function project(x, y, z) {
+            // Apply camera rotation
+            const cosX = Math.cos(camera.rotX);
+            const sinX = Math.sin(camera.rotX);
+            const cosY = Math.cos(camera.rotY);
+            const sinY = Math.sin(camera.rotY);
+
+            // Rotate around Y axis
+            let x1 = x * cosY - z * sinY;
+            let z1 = x * sinY + z * cosY;
+            
+            // Rotate around X axis
+            let y1 = y * cosX - z1 * sinX;
+            let z2 = y * sinX + z1 * cosX;
+
+            // Perspective projection with camera offset
+            const perspective = 1000;
+            const scale = perspective / (perspective + z2 + camera.z);
+            
+            return {
+                x: x1 * scale + width / 2 + camera.offsetX,
+                y: y1 * scale + height / 2 + camera.offsetY,
+                scale: scale,
+                z: z2
+            };
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Smooth camera movement
+            camera.rotX += (camera.targetRotX - camera.rotX) * 0.1;
+            camera.rotY += (camera.targetRotY - camera.rotY) * 0.1;
+            camera.offsetX += (camera.targetOffsetX - camera.offsetX) * 0.1;
+            camera.offsetY += (camera.targetOffsetY - camera.offsetY) * 0.1;
+            
+            // Update pulse animation only if enlivened
+            if (isEnlivened) {
+                pulsePhase += 0.03;
+            }
+            
+            // Handle transition animation
+            if (isTransitioning) {
+                transitionProgress += 0.02;
+                
+                if (transitionProgress >= 1) {
+                    // Transition complete
+                    isTransitioning = false;
+                    transitionProgress = 0;
+                    transitionParticles = [];
+                    oldNodes = [];
+                    newNodes = [];
+                } else {
+                    drawTransition();
+                    requestAnimationFrame(draw);
+                    return;
+                }
+            }
+
+            // Sort nodes by depth for proper rendering
+            const sortedNodes = nodes.map((node, index) => ({
+                node,
+                index,
+                projected: project(node.x, node.y, node.z)
+            })).sort((a, b) => a.projected.z - b.projected.z);
+
+            // Draw connections with root visualization
+            sortedNodes.forEach(({ node, projected: proj1 }) => {
+                // Skip if node is behind camera
+                if (proj1.scale <= 0 || proj1.scale > 10) return;
+                
+                node.connections.forEach(connIndex => {
+                    const connNode = getNodeById(connIndex);
+                    if (!connNode) return;
+                    
+                    const proj2 = project(connNode.x, connNode.y, connNode.z);
+                    
+                    // Only draw if both nodes are visible
+                    if (proj2.scale > 0 && proj2.scale <= 10) {
+                        drawConnection(proj1, proj2, node, connNode);
+                    }
+                });
+            });
+
+            // Draw nodes
+            sortedNodes.forEach(({ node, index, projected: proj }) => {
+                // Check if node is behind camera or scale is invalid
+                if (proj.scale <= 0 || proj.scale > 10) return;
+
+                const baseRadius = node.isComment ? 3.5 : 5;
+                const radius = baseRadius * proj.scale;
+                const isSelected = selectedNode && selectedNode.id === node.id;
+                const isCurrent = currentNode && currentNode.id === node.id;
+                const glowIntensity = node.getGlowIntensity();
+
+                // Glow effect with age-based intensity
+                const gradient = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, radius * 4);
+                
+                if (isCurrent) {
+                    gradient.addColorStop(0, `rgba(183, 33, 255, ${0.8 * glowIntensity})`);
+                    gradient.addColorStop(0.5, `rgba(183, 33, 255, ${0.4 * glowIntensity})`);
+                } else if (isSelected) {
+                    gradient.addColorStop(0, `rgba(255, 0, 255, ${0.6 * glowIntensity})`);
+                    gradient.addColorStop(0.5, `rgba(255, 0, 255, ${0.3 * glowIntensity})`);
+                } else if (node.isComment) {
+                    gradient.addColorStop(0, `rgba(147, 51, 234, ${0.5 * glowIntensity})`);
+                    gradient.addColorStop(0.5, `rgba(107, 0, 255, ${0.25 * glowIntensity})`);
+                } else {
+                    gradient.addColorStop(0, `rgba(183, 33, 255, ${0.5 * glowIntensity})`);
+                    gradient.addColorStop(0.5, `rgba(107, 0, 255, ${0.3 * glowIntensity})`);
+                }
+                gradient.addColorStop(1, 'rgba(107, 0, 255, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, radius * 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Node center
+                if (node.isComment) {
+                    ctx.fillStyle = isCurrent ? '#ffffff' : (isSelected ? '#ff00ff' : '#9333ea');
+                } else {
+                    ctx.fillStyle = isCurrent ? '#ffffff' : (isSelected ? '#ff00ff' : '#b721ff');
+                }
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Node label
+                if (proj.scale > 0.7) {
+                    ctx.fillStyle = node.isComment ? '#9333ea' : '#b721ff';
+                    ctx.font = `${(node.isComment ? 10 : 12) * proj.scale}px "Courier New"`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(node.name, proj.x, proj.y - radius * 3);
+                }
+            });
+
+            requestAnimationFrame(draw);
+        }
+
+        // Mouse interaction
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            mouseHasMoved = false;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            document.body.classList.add('grabbing');
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                
+                // Track if mouse has moved significantly
+                if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+                    mouseHasMoved = true;
+                }
+                
+                camera.targetRotY += deltaX * 0.01;
+                camera.targetRotX += deltaY * 0.01;
+                
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.classList.remove('grabbing');
+        });
+
+        canvas.addEventListener('click', (e) => {
+            // Only process click if mouse didn't move during drag
+            if (mouseHasMoved) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Find clicked node
+            let closestNode = null;
+            let closestDist = Infinity;
+
+            nodes.forEach(node => {
+                const proj = project(node.x, node.y, node.z);
+                const dist = Math.hypot(proj.x - mouseX, proj.y - mouseY);
+                const radius = 5 * proj.scale;
+                
+                if (dist < radius * 4 && dist < closestDist) {
+                    closestNode = node;
+                    closestDist = dist;
+                }
+            });
+
+            if (closestNode) {
+                openNodePanel(closestNode);
+            } else {
+                // Clicked on empty space - close panel
+                closePanel();
+            }
+        });
+
+        // Zoom
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            camera.z += e.deltaY * 0.5;
+            camera.z = Math.max(-2000, Math.min(-100, camera.z));
+        });
+
+        function openNodePanel(node) {
+            selectedNode = node;
+            
+            if (node.isComment) {
+                // Display comment node info
+                document.getElementById('nodeName').textContent = node.name;
+                document.getElementById('nodeId').textContent = `Comment by ${node.author}`;
+                
+                const commentsList = document.getElementById('commentsList');
+                commentsList.innerHTML = `
+                    <div class="comment">
+                        <div class="comment-author">${node.author}</div>
+                        <div class="comment-text">${node.text}</div>
+                        <div class="comment-time">${node.timestamp}</div>
+                    </div>
+                    <p style="color: #666; font-style: italic; margin-top: 15px;">This is a comment node. Add your own comment to create a new connection!</p>
+                `;
+            } else {
+                // Display topic node info
+                document.getElementById('nodeName').textContent = node.name;
+                document.getElementById('nodeId').textContent = `ID: ${node.id} • Topic Node`;
+                
+                // Find and display connected comment nodes
+                const commentsList = document.getElementById('commentsList');
+                const commentNodes = node.connections
+                    .map(id => getNodeById(id))
+                    .filter(n => n && n.isComment && n.parentId === node.id);
+                
+                if (commentNodes.length === 0) {
+                    commentsList.innerHTML = '<p style="color: #666; font-style: italic;">No comments yet. Be the first to add a node!</p>';
+                } else {
+                    commentsList.innerHTML = '';
+                    commentNodes.forEach(commentNode => {
+                        const commentDiv = document.createElement('div');
+                        commentDiv.className = 'comment';
+                        commentDiv.style.cursor = 'pointer';
+                        commentDiv.onclick = () => {
+                            travelToNode(commentNode);
+                            openNodePanel(commentNode);
+                        };
+                        commentDiv.innerHTML = `
+                            <div class="comment-author">${commentNode.author}</div>
+                            <div class="comment-text">${commentNode.text}</div>
+                            <div class="comment-time">${commentNode.timestamp}</div>
+                        `;
+                        commentsList.appendChild(commentDiv);
+                    });
+                }
+            }
+            
+            document.getElementById('nodePanel').classList.add('active');
+        }
+
+        function closePanel() {
+            document.getElementById('nodePanel').classList.remove('active');
+            selectedNode = null;
+        }
+
+        function closeInstructions() {
+            document.getElementById('instructions').style.display = 'none';
+        }
+
+        function addComment() {
+            if (!selectedNode) return;
+            
+            const author = document.getElementById('authorInput').value.trim() || 'Anonymous';
+            const text = document.getElementById('commentInput').value.trim();
+            
+            if (!text) {
+                alert('Please enter a comment');
+                return;
+            }
+            
+            // Create a short name from the comment
+            const shortName = text.length > 20 ? text.substring(0, 20) + '...' : text;
+            
+            // Get next available ID
+            const nextId = nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 0;
+            
+            // Position new node near parent
+            const offset = 80 + Math.random() * 40;
+            const angle = Math.random() * Math.PI * 2;
+            const verticalOffset = (Math.random() - 0.5) * 60;
+            
+            const newNode = new Node(
+                nextId,
+                shortName,
+                selectedNode.x + Math.cos(angle) * offset,
+                selectedNode.y + verticalOffset,
+                selectedNode.z + Math.sin(angle) * offset,
+                true, // isComment
+                author,
+                text,
+                selectedNode.id
+            );
+            
+            // Add bidirectional connection
+            newNode.connections.push(selectedNode.id);
+            selectedNode.connections.push(newNode.id);
+            
+            // Add to nodes array
+            nodes.push(newNode);
+            
+            // Save current rhizome state
+            saveCurrentRhizome();
+            
+            // Clear inputs
+            document.getElementById('authorInput').value = '';
+            document.getElementById('commentInput').value = '';
+            
+            // Refresh panel and travel to new node
+            travelToNode(newNode);
+            openNodePanel(newNode);
+            
+            // Show notification
+            showNotification('New node created!');
+        }
+        
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(107, 0, 255, 0.95);
+                color: white;
+                padding: 20px 40px;
+                border-radius: 8px;
+                font-size: 1.2rem;
+                z-index: 1000;
+                box-shadow: 0 0 30px rgba(183, 33, 255, 0.8);
+                animation: fadeOut 2s ease-out forwards;
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 2000);
+        }
+
+        function travelToRandom() {
+            const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+            travelToNode(randomNode);
+            openNodePanel(randomNode);
+        }
+
+        function travelToConnected() {
+            if (!currentNode || currentNode.connections.length === 0) {
+                travelToRandom();
+                return;
+            }
+            
+            const connectedIndex = currentNode.connections[Math.floor(Math.random() * currentNode.connections.length)];
+            const connectedNode = getNodeById(connectedIndex);
+            if (connectedNode) {
+                travelToNode(connectedNode);
+                openNodePanel(connectedNode);
+            } else {
+                travelToRandom();
+            }
+        }
+
+        function travelToNode(node) {
+            currentNode = node;
+            updateCurrentNodeDisplay();
+            
+            // Animate camera to node
+            const targetRotY = Math.atan2(node.x, node.z);
+            const targetRotX = Math.atan2(node.y, Math.hypot(node.x, node.z));
+            
+            camera.targetRotY = targetRotY;
+            camera.targetRotX = targetRotX;
+        }
+
+        function updateCurrentNodeDisplay() {
+            document.getElementById('currentNodeDisplay').textContent = currentNode ? currentNode.name : '—';
+        }
+
+        function resetView() {
+            camera.targetRotX = 0;
+            camera.targetRotY = 0;
+            camera.z = -500;
+            camera.targetOffsetX = 0;
+            camera.targetOffsetY = 0;
+        }
+        
+        function removeNode() {
+            if (!selectedNode) return;
+            
+            const nodeId = selectedNode.id;
+            
+            // Remove all connections to this node
+            nodes.forEach(node => {
+                node.connections = node.connections.filter(id => id !== nodeId);
+            });
+            
+            // Remove the node itself
+            const nodeIndex = nodes.findIndex(n => n.id === nodeId);
+            if (nodeIndex !== -1) {
+                nodes.splice(nodeIndex, 1);
+            }
+            
+            // If removed node was current, switch to another
+            if (currentNode && currentNode.id === nodeId) {
+                currentNode = nodes.length > 0 ? nodes[0] : null;
+                updateCurrentNodeDisplay();
+            }
+            
+            closePanel();
+            
+            // Increment deletion counter
+            deletionCount++;
+            
+            // Update current rhizome instance
+            rhizomes[currentRhizomeIndex].deletionCount = deletionCount;
+            
+            // Check if we need to create a new rhizome
+            if (deletionCount >= DELETIONS_FOR_NEW_RHIZOME) {
+                createNewRhizomeInstance();
+            }
+            
+            showNotification('Node removed');
+        }
+        
+        function createNewRhizomeInstance() {
+            if (isTransitioning) return; // Don't allow during transition
+            
+            // Save current state
+            saveCurrentRhizome();
+            
+            // Store old nodes for transition
+            oldNodes = nodes.map(n => ({...n}));
+            
+            // Create fresh rhizome
+            const freshRhizome = createInitialRhizome();
+            newNodes = freshRhizome;
+            
+            // Start transition
+            isTransitioning = true;
+            transitionProgress = 0;
+            
+            // Add to rhizomes array
+            rhizomes.push({
+                nodes: JSON.parse(JSON.stringify(freshRhizome.map(n => ({
+                    id: n.id,
+                    name: n.name,
+                    x: n.x,
+                    y: n.y,
+                    z: n.z,
+                    connections: [...n.connections],
+                    isComment: n.isComment,
+                    author: n.author,
+                    text: n.text,
+                    parentId: n.parentId,
+                    timestamp: n.timestamp,
+                    createdAt: n.createdAt
+                })))),
+                deletionCount: 0,
+                created: Date.now()
+            });
+            
+            currentRhizomeIndex = rhizomes.length - 1;
+            
+            // Set up completion callback
+            setTimeout(() => {
+                nodes = freshRhizome;
+                currentNode = nodes[0];
+                updateCurrentNodeDisplay();
+                deletionCount = 0;
+                updateRhizomeSelector();
+            }, 2000); // Match transition duration
+            
+            showNotification(`New Rhizome Created! (No. ${rhizomes.length})`);
+        }
+        
+        function saveCurrentRhizome() {
+            rhizomes[currentRhizomeIndex] = {
+                nodes: JSON.parse(JSON.stringify(nodes.map(n => ({
+                    id: n.id,
+                    name: n.name,
+                    x: n.x,
+                    y: n.y,
+                    z: n.z,
+                    connections: [...n.connections],
+                    isComment: n.isComment,
+                    author: n.author,
+                    text: n.text,
+                    parentId: n.parentId,
+                    timestamp: n.timestamp,
+                    createdAt: n.createdAt
+                })))),
+                deletionCount: deletionCount,
+                created: rhizomes[currentRhizomeIndex].created
+            };
+        }
+        
+        function switchRhizome(index) {
+            if (index === currentRhizomeIndex || index >= rhizomes.length) return;
+            if (isTransitioning) return; // Don't allow switching during transition
+            
+            // Save current rhizome state
+            saveCurrentRhizome();
+            
+            // Store old nodes for transition
+            oldNodes = nodes.map(n => ({...n}));
+            
+            // Load selected rhizome
+            currentRhizomeIndex = index;
+            const rhizomeData = rhizomes[index];
+            
+            // Reconstruct nodes from saved data
+            const reconstructedNodes = rhizomeData.nodes.map(n => {
+                const node = new Node(n.id, n.name, n.x, n.y, n.z, n.isComment, n.author, n.text, n.parentId);
+                node.connections = [...n.connections];
+                node.timestamp = n.timestamp;
+                node.createdAt = n.createdAt;
+                return node;
+            });
+            
+            // Store new nodes for transition
+            newNodes = reconstructedNodes;
+            
+            // Start transition
+            isTransitioning = true;
+            transitionProgress = 0;
+            
+            // Set up completion callback
+            setTimeout(() => {
+                nodes = reconstructedNodes;
+                deletionCount = rhizomeData.deletionCount;
+                currentNode = nodes[0] || null;
+                updateCurrentNodeDisplay();
+                updateRhizomeSelector();
+                closePanel();
+            }, 2000); // Match transition duration
+            
+            showNotification(`Switching to Rhizome No. ${index + 1}...`);
+        }
+        
+        function toggleEnliven() {
+            isEnlivened = !isEnlivened;
+            const button = document.getElementById('enlivenToggle');
+            
+            if (isEnlivened) {
+                button.classList.add('active');
+                button.textContent = '◈ Enliven: ON';
+            } else {
+                button.classList.remove('active');
+                button.textContent = '◈ Enliven: OFF';
+            }
+        }
+        
+        function updateRhizomeSelector() {
+            const selector = document.getElementById('rhizomeSelector');
+            
+            if (rhizomes.length <= 1) {
+                selector.style.display = 'none';
+                return;
+            }
+            
+            selector.style.display = 'flex';
+            selector.innerHTML = '';
+            
+            rhizomes.forEach((rhizome, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'rhizome-btn' + (index === currentRhizomeIndex ? ' active' : '');
+                btn.textContent = `Rhizome No. ${index + 1}`;
+                btn.onclick = () => switchRhizome(index);
+                selector.appendChild(btn);
+            });
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            updateRhizomeSelector();
+            
+            // Root slider event listener
+            const rootSlider = document.getElementById('rootSlider');
+            rootSlider.addEventListener('input', (e) => {
+                rootIntensity = e.target.value / 100;
+            });
+        });
+        
+        // Arrow key controls for camera center movement
+        let keyboardHintTimeout;
+        
+        window.addEventListener('keydown', (e) => {
+            const moveSpeed = 50;
+            let keyUsed = false;
+            
+            switch(e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    camera.targetOffsetY -= moveSpeed;
+                    keyUsed = true;
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    camera.targetOffsetY += moveSpeed;
+                    keyUsed = true;
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    camera.targetOffsetX -= moveSpeed;
+                    keyUsed = true;
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    camera.targetOffsetX += moveSpeed;
+                    keyUsed = true;
+                    break;
+            }
+            
+            // Show keyboard hint when arrow keys are used
+            if (keyUsed) {
+                const hint = document.getElementById('keyboardHint');
+                hint.classList.add('show');
+                
+                clearTimeout(keyboardHintTimeout);
+                keyboardHintTimeout = setTimeout(() => {
+                    hint.classList.remove('show');
+                }, 2000);
+            }
+        });
+        
+        window.addEventListener('resize', resize);
+        resize();
+        draw();
+    </script>
+</body>
+</html>
